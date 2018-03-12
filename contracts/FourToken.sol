@@ -2,7 +2,7 @@ pragma solidity ^0.4.17;
 
 import './token/CappedToken.sol';
 import './token/SignedTransferToken.sol';
-
+import './token/ERC20Interface.sol';
 
 contract FourToken is CappedToken, SignedTransferToken {
   string public name = 'The 4th Pillar Token';
@@ -14,6 +14,11 @@ contract FourToken is CappedToken, SignedTransferToken {
 
   function FourToken()
     CappedToken(maxSupply) public {
+  }
+
+  // @dev Recover any mistakenly sent ERC20 tokens to the Token address
+  function recoverERC20Tokens(address _erc20, uint256 _amount) public onlyOwner {
+    ERC20Interface(_erc20).transfer(msg.sender, _amount);
   }
 
 }

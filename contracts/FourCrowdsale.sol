@@ -25,7 +25,7 @@ contract FourCrowdsale is TokenCappedCrowdsale, WhitelistCrowdsale, FinalizableC
   address public constant ADVISORS_AND_CONTRIBUTORS_ADDRESS = 0x90adab6891514DC24411B9Adf2e11C0eD7739999;
 
   uint256 public constant BOUNTY_TOKENS = 7000000 * E18;
-  address public constant BOUNTY_ADDRESS = 0x18F260a71C282Bc4d5FE4Ee1187658a06e9d1a59;
+  address public constant BOUNTY_ADDRESS = 0x4E045f317B4907320B8b7aC3776C996F59e28790;
 
   // To be airdroped to crowdsale participants and early backers 
   address public constant UNSOLD_ADDRESS = 0x4ec155995211c8639375ae3106187bff3ff5db46;

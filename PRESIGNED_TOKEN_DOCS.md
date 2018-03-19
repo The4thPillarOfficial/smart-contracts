@@ -1,4 +1,3 @@
-
 # Signed Transfer Token
 
 You can provide your community with the ability to transact with your ERC20 token,
@@ -43,11 +42,31 @@ The function calculates the `keccak256` hash as following:
 
 ```
 function calculateHash(address _from, address _to, uint256 _value, uint256 _fee, uint256 _nonce) public view returns (bytes32) {
-  return keccak256(address(this), _from, _to, _value, _fee, _nonce);
+  return keccak256(0, address(this), _from, _to, _value, _fee, _nonce);
 }
 ```
 
-### 2.2. Verifying Transaction Settlement Status
+### 2.2. Calculating the Transaction Unique Hash (Many)
+
+You can give your users the ability to transfer to multiple addresses with a single call. This requires a different calculate hash function which we named  `calculateManyHash`.
+
+The function takes as an input:
+
+  - **_from** - address of the sender - User A
+  - **_tos** - array of addresses - receivers  - User B, User C, User D, ...
+  - **_values** - array of uint256 how many tokens should be transferred to user B, C, D, ...
+  - **_fee** - uint256 - how much fee is A paying for the transaction to the Settlement Service
+  - **_nonce** - uint256 - unique number of the users transaction. We recommend using UNIX timestamp.
+
+The function calculates the `keccak256` hash as following:
+
+```
+function calculateManyHash(address _from, address[] _tos, uint256[] _values, uint256 _fee, uint256 _nonce) public view returns (bytes32) {
+  return keccak256(1, address(this), _from, _tos, _values, _fee, _nonce);
+}
+```
+
+### 2.3. Verifying Transaction Settlement Status
 
 Client application should always verify if the transaction has been already settled.
 
@@ -60,7 +79,7 @@ The function takes as an input:
 
  The function returns either **true** or **false**.
 
-### 2.3. Verifying Transaction Signature and Balances
+### 2.4. Verifying Transaction Signature and Balances
 
 To save on gas costs in case of failed settlements Settlement Service should, prior to submitting the transaction for settlement, always check balance of the sender and signature of
 the transaction.
@@ -76,18 +95,29 @@ Input parameters:
 
  The function returns either **true** or **false**.
 
-### 2.4 Settling the transaction
+### 2.5. Settling the transaction
 
 Smart Contract allows you to settle a single transaction or several transactions
 with one function call - should provide some gas savings.
 
-Functions that enable settlement are `transferPreSigned` and `transferPreSignedBulk`.
+Functions that enable settlement are `transferPreSigned`, `transferPreSignedBulk` and `transferPreSignedMany`.
 
-Input parameters are the same for both function, only difference being that the Bulk settlement accepts arrays for each parameter:
+Input parameters are the same for both `transferPreSigned` and `transferPreSignedBulk`, only difference being that the Bulk settlement accepts arrays for each parameter:
 
 - **_from** - address of the sender - User A
 - **_to** - address of the receiver - User B
 - **_value** - uint256 how many tokens should be transferred to user B
+- **_fee** - uint256 - how much fee is A paying for the transaction to the Settlement Service
+- **_nonce** - uint256 - unique number of the users transaction. We recommend using UNIX timestamp.
+- **_v** - uint8
+- **_r** - bytes32
+- **_s** - bytes32
+
+The `transferPreSignedMany` takes in
+
+- **_from** - address of the sender - User A
+- **_tos** - array of address - receivers - User B, C, D, ...
+- **_values** - array of uint256 -  how many tokens should be transferred to user B, C, D, ...
 - **_fee** - uint256 - how much fee is A paying for the transaction to the Settlement Service
 - **_nonce** - uint256 - unique number of the users transaction. We recommend using UNIX timestamp.
 - **_v** - uint8

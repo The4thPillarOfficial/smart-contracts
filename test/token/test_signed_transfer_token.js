@@ -34,6 +34,28 @@ contract('SignedTransferToken', function(accounts) {
     assert.equal(result, true, 'Signature should be valid');
   });
 
+  it('should generate valid signature for many', async function()  {
+    let from = accounts[0];
+    let tos = [accounts[1], accounts[2]];
+    let values = [20, 10];
+    let fee = 2;
+    let timestamp = Date.now();
+
+    // use the contract public view method to calculate the hash of the tx
+    const calculatedHash = await token.calculateManyHash(from, tos, values, fee, timestamp);
+
+    // sign the transaction hash with senders account
+    const signature = await web3.eth.sign(from, calculatedHash);
+
+    r = signature.substr(0, 66);
+    s = '0x' + signature.substr(66, 64);
+    v = parseInt('0x' + signature.substr(130, 2)) + 27;
+
+    const result = await token.isValidSignature(from, calculatedHash, v, r, s);
+
+    assert.equal(result, true, 'Signature should be valid');
+  });
+
   it('should allow 3rd party to transfer pre signed message', async function()  {
     let from = accounts[0];
     let to = accounts[1];
@@ -83,6 +105,53 @@ contract('SignedTransferToken', function(accounts) {
     assert.equal(tx.logs[2].args.fee.valueOf(), 2);
   });
 
+  it('should allow third party to settle many transaction', async function()  {
+    let from = accounts[0];
+    let tos = [accounts[1], accounts[2]];
+    let values = [20, 10];
+    let fee = 2;
+    let timestamp = Date.now();
+
+    let feeTaker = accounts[3];
+
+    // use the contract public view method to calculate the hash of the tx
+    const calculatedHash = await token.calculateManyHash(from, tos, values, fee, timestamp);
+
+    // sign the transaction hash with senders account
+    const signature = await web3.eth.sign(from, calculatedHash);
+
+    r = signature.substr(0, 66);
+    s = '0x' + signature.substr(66, 64);
+    v = parseInt('0x' + signature.substr(130, 2)) + 27;
+
+    // settle transaction from the third account
+    const tx = await token.transferPreSignedMany(from, tos, values, fee, timestamp, v, r, s, {from: feeTaker});
+    // validate is transfer marked as settled
+    assert.equal(await token.isTransactionAlreadySettled(from, calculatedHash), true);
+
+    // validate it correctly updated balances of respective accounts
+    assert.equal(await token.balanceOf(feeTaker), 2, "FeeTakers account balance should be 2");
+    assert.equal(await token.balanceOf(from), 68, "From account balance should be 68");
+    assert.equal(await token.balanceOf(accounts[1]), 20, "To account balance should be 20");
+    assert.equal(await token.balanceOf(accounts[2]), 10, "To account balance should be 10");
+
+    assert.equal(tx.logs[0].event, 'Transfer');
+    assert.equal(tx.logs[0].args.from.valueOf(), from);
+    assert.equal(tx.logs[0].args.to.valueOf(), tos[0], 'transfer one recipient not correct');
+    assert.equal(tx.logs[0].args.value.valueOf(), 20);
+
+    assert.equal(tx.logs[1].event, 'Transfer');
+    assert.equal(tx.logs[1].args.from.valueOf(), from);
+    assert.equal(tx.logs[1].args.to.valueOf(), tos[1], 'transfer two recipient not correct');
+    assert.equal(tx.logs[1].args.value.valueOf(), 10);
+
+    assert.equal(tx.logs[2].event, 'Transfer');
+    assert.equal(tx.logs[2].args.from.valueOf(), from);
+    assert.equal(tx.logs[2].args.to.valueOf(), feeTaker, 'fee taker is not the msg.sender');
+    assert.equal(tx.logs[2].args.value.valueOf(), 2);
+
+  });
+
   it('should fail to settle transaction if the recipient is zero address', async function()  {
     let from = accounts[0];
     let to = 0x0;
@@ -104,6 +173,32 @@ contract('SignedTransferToken', function(accounts) {
 
     // settle transaction from the third account
     await assertRevert(token.transferPreSigned(from, to, value, fee, timestamp, v, r, s, {from: feeTaker}));
+  });
+
+  it('should fail to settle many transaction if one recipient is 0x0', async function()  {
+    let from = accounts[0];
+    let tos = [accounts[1], 0x0];
+    let values = [20, 10];
+    let fee = 2;
+    let timestamp = Date.now();
+
+    let feeTaker = accounts[3];
+
+    // use the contract public view method to calculate the hash of the tx
+    const calculatedHash = await token.calculateManyHash(from, tos, values, fee, timestamp);
+
+    // sign the transaction hash with senders account
+    const signature = await web3.eth.sign(from, calculatedHash);
+
+    r = signature.substr(0, 66);
+    s = '0x' + signature.substr(66, 64);
+    v = parseInt('0x' + signature.substr(130, 2)) + 27;
+
+    // settle transaction from the third account
+    await assertRevert(token.transferPreSignedMany(from, tos, values, fee, timestamp, v, r, s, {from: feeTaker}));
+    // validate is transfer marked as settled
+    assert.equal(await token.isTransactionAlreadySettled(from, calculatedHash), false);
+
   });
 
   it('should fail to settle transaction if the signature is invalid', async function()  {
@@ -156,6 +251,35 @@ contract('SignedTransferToken', function(accounts) {
     assert.equal(await token.isTransactionAlreadySettled(from, calculatedHash), false);
   });
 
+  it('should fail to settle many transaction if amount exceeds balance', async function()  {
+    let from = accounts[0];
+    let tos = [accounts[1], accounts[2]];
+    let values = [90, 10];
+    let fee = 2;
+    let timestamp = Date.now();
+
+    let feeTaker = accounts[3];
+
+    // use the contract public view method to calculate the hash of the tx
+    const calculatedHash = await token.calculateManyHash(from, tos, values, fee, timestamp);
+
+    // sign the transaction hash with senders account
+    const signature = await web3.eth.sign(from, calculatedHash);
+
+    r = signature.substr(0, 66);
+    s = '0x' + signature.substr(66, 64);
+    v = parseInt('0x' + signature.substr(130, 2)) + 27;
+
+    const result = await token.isValidSignature(from, calculatedHash, v, r, s);
+
+    assert.equal(result, true, 'Signature should be valid');
+    // settle transaction from the third account
+    await assertRevert(token.transferPreSignedMany(from, tos, values, fee, timestamp, v, r, s, {from: feeTaker}));
+    // validate is transfer marked as settled
+    assert.equal(await token.isTransactionAlreadySettled(from, calculatedHash), false);
+
+  });
+
   it('should fail to settle transaction if already settled', async function()  {
     let from = accounts[0];
     let to = accounts[1];
@@ -184,6 +308,33 @@ contract('SignedTransferToken', function(accounts) {
 
     // settle for the second time
     await assertRevert(token.transferPreSigned(from, to, value, fee, timestamp, v, r, s, {from: feeTaker}));
+  });
+
+  it('should fail to settle many transaction if already settled', async function()  {
+    let from = accounts[0];
+    let tos = [accounts[1], accounts[2]];
+    let values = [20, 10];
+    let fee = 2;
+    let timestamp = Date.now();
+
+    let feeTaker = accounts[3];
+
+    // use the contract public view method to calculate the hash of the tx
+    const calculatedHash = await token.calculateManyHash(from, tos, values, fee, timestamp);
+
+    // sign the transaction hash with senders account
+    const signature = await web3.eth.sign(from, calculatedHash);
+
+    r = signature.substr(0, 66);
+    s = '0x' + signature.substr(66, 64);
+    v = parseInt('0x' + signature.substr(130, 2)) + 27;
+
+    // settle transaction from the third account
+    await token.transferPreSignedMany(from, tos, values, fee, timestamp, v, r, s, {from: feeTaker})
+    await assertRevert(token.transferPreSignedMany(from, tos, values, fee, timestamp, v, r, s, {from: feeTaker}));
+    // validate is transfer marked as settled
+    assert.equal(await token.isTransactionAlreadySettled(from, calculatedHash), true);
+
   });
 
   it('should settle multiple successful transactions at once', async function() {

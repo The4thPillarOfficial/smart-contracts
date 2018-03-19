@@ -11,12 +11,21 @@ import './BaseToken.sol';
 */
 contract SignedTransferToken is BaseToken {
 
-  event TransferPreSigned(address indexed from,
+  event TransferPreSigned(
+    address indexed from,
     address indexed to,
     address indexed settler,
     uint256 value,
     uint256 fee
   );
+
+  event TransferPreSignedMany(
+    address indexed from,
+    address indexed settler,
+    uint256 value,
+    uint256 fee
+  );
+
 
   // Mapping of already executed settlements for a given address
   mapping(address => mapping(bytes32 => bool)) executedSettlements;
@@ -93,11 +102,68 @@ contract SignedTransferToken is BaseToken {
 
     return true;
   }
+
+
+  function transferPreSignedMany(address _from,
+                                 address[] _tos,
+                                 uint256[] _values,
+                                 uint256 _fee,
+                                 uint256 _nonce,
+                                 uint8 _v,
+                                 bytes32 _r,
+                                 bytes32 _s) public returns (bool) {
+   require(_tos.length == _values.length);
+   uint256 total = getTotal(_tos, _values, _fee);
+
+   bytes32 calcHash = calculateManyHash(_from, _tos, _values, _fee, _nonce);
+
+   require(isValidSignature(_from, calcHash, _v, _r, _s));
+   require(balances[_from] >= total);
+   require(!executedSettlements[_from][calcHash]);
+
+   executedSettlements[_from][calcHash] = true;
+
+   // transfer to each recipient and take fee at the end
+   for(uint i; i < _tos.length; i++) {
+     // Move tokens
+     balances[_from] = balances[_from].sub(_values[i]);
+     balances[_tos[i]] = balances[_tos[i]].add(_values[i]);
+     Transfer(_from, _tos[i], _values[i]);
+   }
+
+   // Move fee
+   balances[_from] = balances[_from].sub(_fee);
+   balances[msg.sender] = balances[msg.sender].add(_fee);
+   Transfer(_from, msg.sender, _fee);
+
+   TransferPreSignedMany(_from, msg.sender, total, _fee);
+
+   return true;
+  }
+
+  function getTotal(address[] _tos, uint256[] _values, uint256 _fee) private view returns (uint256)  {
+    uint256 total = _fee;
+
+    for(uint i; i < _tos.length; i++) {
+      total = total.add(_values[i]); // sum of all the values + fee
+      require(_tos[i] != address(0)); // check that the recipient is a valid address
+    }
+
+    return total;
+  }
+
+  /**
+  * @dev Calculates transfer hash for transferPreSignedMany
+  */
+  function calculateManyHash(address _from, address[] _tos, uint256[] _values, uint256 _fee, uint256 _nonce) public view returns (bytes32) {
+    return keccak256(uint256(1), address(this), _from, _tos, _values, _fee, _nonce);
+  }
+
   /**
   * @dev Calculates transfer hash.
   */
   function calculateHash(address _from, address _to, uint256 _value, uint256 _fee, uint256 _nonce) public view returns (bytes32) {
-    return keccak256(address(this), _from, _to, _value, _fee, _nonce);
+    return keccak256(uint256(0), address(this), _from, _to, _value, _fee, _nonce);
   }
 
   /**

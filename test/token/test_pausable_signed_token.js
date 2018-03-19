@@ -81,6 +81,32 @@ contract('PausableSignedTrasferToken', function(accounts) {
       await assertRevert(token.transferPreSigned(from, to, value, fee, timestamp, v, r, s, {from: feeTaker}));
     });
 
+    it('transferPreSignedMany is not possible', async function()  {
+      let from = accounts[0];
+      let tos = [accounts[1], accounts[2]];
+      let values = [20, 10];
+      let fee = 2;
+      let timestamp = Date.now();
+
+      let feeTaker = accounts[3];
+
+      // use the contract public view method to calculate the hash of the tx
+      const calculatedHash = await token.calculateManyHash(from, tos, values, fee, timestamp);
+
+      // sign the transaction hash with senders account
+      const signature = await web3.eth.sign(from, calculatedHash);
+
+      r = signature.substr(0, 66);
+      s = '0x' + signature.substr(66, 64);
+      v = parseInt('0x' + signature.substr(130, 2)) + 27;
+
+      // settle transaction from the third account
+      await assertRevert(token.transferPreSignedMany(from, tos, values, fee, timestamp, v, r, s, {from: feeTaker}));
+      // validate is transfer marked as settled
+      assert.equal(await token.isTransactionAlreadySettled(from, calculatedHash), false);
+
+    });
+
     it('transferPreSignedBulk is not possible', async function() {
       let fromFirst = accounts[0];
       let toFirst = accounts[1];
@@ -237,6 +263,32 @@ contract('PausableSignedTrasferToken', function(accounts) {
       assert.equal(tx.logs[2].args.settler.valueOf(), feeTaker);
       assert.equal(tx.logs[2].args.value.valueOf(), 20);
       assert.equal(tx.logs[2].args.fee.valueOf(), 2);
+    });
+
+    it('transferPreSignedMany is possible', async function()  {
+      let from = accounts[0];
+      let tos = [accounts[1], accounts[2]];
+      let values = [20, 10];
+      let fee = 2;
+      let timestamp = Date.now();
+
+      let feeTaker = accounts[3];
+
+      // use the contract public view method to calculate the hash of the tx
+      const calculatedHash = await token.calculateManyHash(from, tos, values, fee, timestamp);
+
+      // sign the transaction hash with senders account
+      const signature = await web3.eth.sign(from, calculatedHash);
+
+      r = signature.substr(0, 66);
+      s = '0x' + signature.substr(66, 64);
+      v = parseInt('0x' + signature.substr(130, 2)) + 27;
+
+      // settle transaction from the third account
+      await token.transferPreSignedMany(from, tos, values, fee, timestamp, v, r, s, {from: feeTaker});
+      // validate is transfer marked as settled
+      assert.equal(await token.isTransactionAlreadySettled(from, calculatedHash), true);
+
     });
 
     it('transferPreSignedBulk is possible', async function() {

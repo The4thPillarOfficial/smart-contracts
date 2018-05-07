@@ -12,7 +12,9 @@ Decimal places: **18**
 
 ## Deployed Contracts
 
-Token: **Not yet deployed on the Mainnet**
+**Mainnet**
+
+Token: 0x4730fB1463A6F1F44AEB45F6c5c422427f37F4D0
 
 Crowdsale: **Not yet deployed on the Mainnet**
 

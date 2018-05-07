@@ -13,6 +13,7 @@ contract('FourToken', function(accounts) {
 
   beforeEach('setup a new contract for each test', async function() {
     token = await FourToken.new();
+    await token.unpause();
   });
 
   it('should have a symbol of FOUR', async function() {
